@@ -11,12 +11,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Models and Data (ignoring by default for safety)
-MODELS/
-MODELS_UPDATED_ANTIGRAVITY/
-model/
-*.pkl
-*.csv
+# Models and Data
+# Models are now tracked so the Streamlit Cloud app can use them
+# *.pkl
+# *.csv
 
 # Streamlit
 .streamlit/
