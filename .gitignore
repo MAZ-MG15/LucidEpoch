@@ -1,0 +1,31 @@
+# Environments
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Models and Data (ignoring by default for safety)
+MODELS/
+MODELS_UPDATED_ANTIGRAVITY/
+model/
+*.pkl
+*.csv
+
+# Streamlit
+.streamlit/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
