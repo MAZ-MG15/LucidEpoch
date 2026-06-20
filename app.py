@@ -164,6 +164,13 @@ if model is not None:
     light_sleep = st.sidebar.slider("Light sleep percentage (%)", min_value=0, max_value=100, value=st.session_state.get('light_sleep', 60))
     
     st.sidebar.divider()
+    
+    total_sleep_stages = rem_sleep + deep_sleep + light_sleep
+    if total_sleep_stages != 100:
+        st.sidebar.error(f"⚠️ Invalid Input: Sleep stages currently sum to {total_sleep_stages}%. They must add up to exactly 100%.")
+        st.error("Please adjust the sleep stage percentages in the sidebar to equal exactly 100% before viewing predictions.")
+        st.stop()
+        
     patient_id_input = st.sidebar.text_input("Patient ID (for saving)", placeholder="e.g., PT-001")
     if st.sidebar.button("💾 Save Patient Record"):
         if patient_id_input:
