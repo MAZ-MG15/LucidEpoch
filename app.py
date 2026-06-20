@@ -449,19 +449,45 @@ if model is not None:
             st.error(f"Could not generate SHAP explanation: {e}")
 
     with tab3:
-        st.subheader("Historical Population Data")
-        st.write("A scalable view of the raw physiological metrics used to train the Multi-Output Random Forest.")
+        st.subheader("Historical Population Demographics")
+        st.write("Visualizations of the clinical dataset used to train the LucidEpoch framework.")
         
         if not hist_data.empty:
-            st.dataframe(hist_data.head(100), use_container_width=True)
+            dem_col1, dem_col2 = st.columns(2)
             
-            csv = hist_data.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="Download Historical Data as CSV",
-                data=csv,
-                file_name='lucidepoch_historical_data.csv',
-                mime='text/csv',
-            )
+            with dem_col1:
+                # Age Distribution
+                fig_age = px.histogram(hist_data, x="Age", title="Age Distribution of Training Cohort", color_discrete_sequence=['#3b82f6'])
+                fig_age.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
+                st.plotly_chart(fig_age, use_container_width=True)
+                
+            with dem_col2:
+                # Gender Distribution
+                if 'Gender' in hist_data.columns:
+                    gender_counts = hist_data['Gender'].value_counts()
+                    fig_gender = go.Figure(data=[go.Pie(labels=gender_counts.index, values=gender_counts.values, hole=.4, marker_colors=['#8b5cf6', '#10b981'])])
+                    fig_gender.update_layout(title_text="Gender Breakdown", paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
+                    st.plotly_chart(fig_gender, use_container_width=True)
+                
+            st.divider()
+            
+            if 'OSA_Risk' in hist_data.columns:
+                osa_counts = hist_data['OSA_Risk'].value_counts().reset_index()
+                osa_counts.columns = ['Risk Level', 'Count']
+                fig_osa = px.bar(osa_counts, x='Risk Level', y='Count', title="Training Data: OSA Risk Labels", color='Risk Level',
+                                color_discrete_map={'Low OSA Risk': '#10b981', 'Moderate OSA Risk': '#f59e0b', 'High OSA Risk': '#ef4444', 'Severe OSA Risk': '#991b1b', 'Low': '#10b981', 'Moderate': '#f59e0b', 'High': '#ef4444'})
+                fig_osa.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
+                st.plotly_chart(fig_osa, use_container_width=True)
+            
+            with st.expander("📥 Download Raw Dataset (CSV)"):
+                st.write("For verification purposes, you can download the raw dataset used to train the model.")
+                csv = hist_data.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Download historical_data.csv",
+                    data=csv,
+                    file_name='lucidepoch_historical_data.csv',
+                    mime='text/csv',
+                )
         else:
             st.warning("Historical data not found.")
 
