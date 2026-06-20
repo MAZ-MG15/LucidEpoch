@@ -120,9 +120,15 @@ def get_simple_explanation(model, input_df, target_idx, feature_cols, pred_numer
 model, le_gender, le_targets, feature_cols = load_model_components()
 hist_data = load_historical_data()
 
-st.title("LucidEpoch: Clinical Sleep Assessment Dashboard")
+col_logo, col_title = st.columns([1, 8])
+with col_logo:
+    st.image("logo.png", width=80)
+with col_title:
+    st.title("LucidEpoch: Clinical Sleep Assessment Dashboard")
+    
 st.write("A machine learning framework for assessing multi-output sleep disorder risks using wearable data.")
 
+st.sidebar.image("logo.png", width=120)
 if model is not None:
     st.sidebar.header("Patient Record Management")
     
