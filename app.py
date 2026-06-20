@@ -4,42 +4,49 @@ import joblib
 import os
 import shap
 import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+import plotly.express as px
+import db_utils
+from pdf_utils import generate_pdf_report
+
+db_utils.init_db()
 
 st.set_page_config(page_title="Sleep Disorder Risk Predictor", layout="wide", page_icon="🌙")
 
 st.markdown("""
     <style>
-        /* Card styling for metrics */
+        /* Glassmorphism premium styling */
+        .stApp {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #f1f5f9;
+        }
+        
         div[data-testid="metric-container"] {
-            background-color: #f8f9fa;
-            border: 1px solid #e9ecef;
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
             transition: all 0.3s ease;
         }
         div[data-testid="metric-container"]:hover {
-            transform: translateY(-2px);
-            box-shadow: 4px 4px 10px rgba(0,0,0,0.1);
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
+            border-color: rgba(0, 242, 254, 0.3);
         }
         
-        /* Make prediction boxes pop */
         div[data-testid="stAlert"] {
-            border-radius: 8px !important;
-            box-shadow: 1px 1px 4px rgba(0,0,0,0.05);
-            transition: all 0.3s ease;
-        }
-        div[data-testid="stAlert"]:hover {
-            transform: translateY(-2px);
-            box-shadow: 4px 4px 10px rgba(0,0,0,0.1);
+            border-radius: 12px !important;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
         
-        /* Dark mode support adjustments */
-        @media (prefers-color-scheme: dark) {
-            div[data-testid="metric-container"] {
-                background-color: #1e1e1e;
-                border-color: #333;
-            }
+        /* Expander styling */
+        div[data-testid="stExpander"] {
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
     </style>
 """, unsafe_allow_html=True)
@@ -117,17 +124,61 @@ st.title("LucidEpoch: Clinical Sleep Assessment Dashboard")
 st.write("A machine learning framework for assessing multi-output sleep disorder risks using wearable data.")
 
 if model is not None:
+    st.sidebar.header("Patient Record Management")
+    
+    patients_df = db_utils.get_all_patients()
+    if not patients_df.empty:
+        patient_list = ["-- New Patient --"] + patients_df['patient_id'].tolist()
+        selected_patient_id = st.sidebar.selectbox("Load Patient Profile", options=patient_list)
+        
+        if selected_patient_id != "-- New Patient --":
+            loaded_data = db_utils.get_patient(selected_patient_id)
+            if loaded_data:
+                st.session_state['age'] = loaded_data['age']
+                st.session_state['gender'] = loaded_data['gender']
+                st.session_state['sleep_duration'] = loaded_data['sleep_duration']
+                st.session_state['sleep_efficiency'] = loaded_data['sleep_efficiency']
+                st.session_state['rem_sleep'] = loaded_data['rem_sleep']
+                st.session_state['deep_sleep'] = loaded_data['deep_sleep']
+                st.session_state['light_sleep'] = loaded_data['light_sleep']
+    
+    st.sidebar.divider()
     st.sidebar.header("Wearable Data Simulator")
-    st.sidebar.write("Adjust the physiological metrics below to see how they impact predictions.")
     
-    age = st.sidebar.number_input("Age", min_value=1, max_value=120, value=30, help="Patient's age in years.")
-    gender = st.sidebar.selectbox("Gender", options=["Male", "Female"], help="Biological gender of the patient.")
-    sleep_duration = st.sidebar.slider("Sleep duration (hours)", min_value=0.0, max_value=24.0, value=7.0, step=0.1, help="Total hours of sleep per day.")
-    sleep_efficiency = st.sidebar.slider("Sleep efficiency", min_value=0.0, max_value=1.0, value=0.85, step=0.01, help="Percentage of time spent asleep while in bed (0.0 to 1.0). Higher is better.")
-    rem_sleep = st.sidebar.slider("REM sleep percentage (%)", min_value=0, max_value=100, value=20, help="Percentage of sleep spent in the REM (Rapid Eye Movement) stage. Important for cognitive function.")
-    deep_sleep = st.sidebar.slider("Deep sleep percentage (%)", min_value=0, max_value=100, value=20, help="Percentage of sleep spent in the Deep sleep stage. Crucial for physical restoration.")
-    light_sleep = st.sidebar.slider("Light sleep percentage (%)", min_value=0, max_value=100, value=60, help="Percentage of sleep spent in the Light sleep stage.")
+    default_age = st.session_state.get('age', 30)
+    default_gender = st.session_state.get('gender', "Male")
+    default_gender_idx = 0 if default_gender == "Male" else 1
     
+    age = st.sidebar.number_input("Age", min_value=1, max_value=120, value=default_age)
+    gender = st.sidebar.selectbox("Gender", options=["Male", "Female"], index=default_gender_idx)
+    sleep_duration = st.sidebar.slider("Sleep duration (hours)", min_value=0.0, max_value=24.0, value=st.session_state.get('sleep_duration', 7.0), step=0.1)
+    sleep_efficiency = st.sidebar.slider("Sleep efficiency", min_value=0.0, max_value=1.0, value=st.session_state.get('sleep_efficiency', 0.85), step=0.01)
+    rem_sleep = st.sidebar.slider("REM sleep percentage (%)", min_value=0, max_value=100, value=st.session_state.get('rem_sleep', 20))
+    deep_sleep = st.sidebar.slider("Deep sleep percentage (%)", min_value=0, max_value=100, value=st.session_state.get('deep_sleep', 20))
+    light_sleep = st.sidebar.slider("Light sleep percentage (%)", min_value=0, max_value=100, value=st.session_state.get('light_sleep', 60))
+    
+    st.sidebar.divider()
+    patient_id_input = st.sidebar.text_input("Patient ID (for saving)", placeholder="e.g., PT-001")
+    if st.sidebar.button("💾 Save Patient Record"):
+        if patient_id_input:
+            patient_data = {
+                'patient_id': patient_id_input,
+                'age': age,
+                'gender': gender,
+                'sleep_duration': sleep_duration,
+                'sleep_efficiency': sleep_efficiency,
+                'rem_sleep': rem_sleep,
+                'deep_sleep': deep_sleep,
+                'light_sleep': light_sleep
+            }
+            success, msg = db_utils.save_patient(patient_data)
+            if success:
+                st.sidebar.success(msg)
+            else:
+                st.sidebar.error(f"Error: {msg}")
+        else:
+            st.sidebar.warning("Please enter a Patient ID to save.")
+            
     predict_clicked = st.sidebar.button("Predict Risks", type="primary")
 
     input_data = {
@@ -151,15 +202,45 @@ if model is not None:
     input_df = input_df[feature_cols]
 
     # Create Tabs
-    tab1, tab2, tab3 = st.tabs(["Overview & Predictions", "Explainable AI (SHAP)", "Historical Population Data"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Overview & Predictions", "Explainable AI (SHAP)", "Historical Population Data", "Batch Processing"])
     
     with tab1:
         st.subheader("Current Wearable Metrics")
-        mcol1, mcol2, mcol3, mcol4 = st.columns(4)
-        mcol1.metric("Sleep Efficiency", f"{int(sleep_efficiency*100)}%")
-        mcol2.metric("Deep Sleep", f"{deep_sleep}%")
-        mcol3.metric("Sleep Duration", f"{sleep_duration} hrs")
-        mcol4.metric("REM Sleep", f"{rem_sleep}%")
+        
+        # Plotly Gauges and Charts
+        fig_col1, fig_col2 = st.columns(2)
+        
+        with fig_col1:
+            # Sleep Efficiency Gauge
+            fig_eff = go.Figure(go.Indicator(
+                mode = "gauge+number",
+                value = sleep_efficiency * 100,
+                title = {'text': "Sleep Score (Efficiency)"},
+                gauge = {
+                    'axis': {'range': [0, 100]},
+                    'bar': {'color': "#00f2fe"},
+                    'steps': [
+                        {'range': [0, 60], 'color': "rgba(231, 76, 60, 0.2)"},
+                        {'range': [60, 85], 'color': "rgba(243, 156, 18, 0.2)"},
+                        {'range': [85, 100], 'color': "rgba(46, 204, 113, 0.2)"}
+                    ],
+                }
+            ))
+            fig_eff.update_layout(height=280, margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
+            st.plotly_chart(fig_eff, use_container_width=True)
+            
+        with fig_col2:
+            # Sleep Stages Donut
+            stages = ['Deep Sleep', 'Light Sleep', 'REM Sleep']
+            values = [deep_sleep, light_sleep, rem_sleep]
+            fig_stages = go.Figure(data=[go.Pie(labels=stages, values=values, hole=.6, marker_colors=['#3b82f6', '#8b5cf6', '#10b981'])])
+            fig_stages.update_layout(title_text="Sleep Stages Breakdown", height=280, margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
+            st.plotly_chart(fig_stages, use_container_width=True)
+            
+        # Quick metrics row underneath
+        mcol1, mcol2 = st.columns(2)
+        mcol1.metric("Total Sleep Duration", f"{sleep_duration} hrs")
+        mcol2.metric("Patient Profile", f"{age} yrs, {gender}")
         
         st.divider()
         st.subheader("Diagnostic Risk Predictions")
@@ -195,13 +276,52 @@ if model is not None:
                 explanation = get_simple_explanation(model, input_df, i, feature_cols, pred_numeric)
             explanations_text[target_col] = explanation
             
-            with cols[i]:
-                if score == 0:
-                    st.success(f"**{target_col.replace('_', ' ')}**\n\n{pred_label}")
-                elif score == 1:
-                    st.warning(f"**{target_col.replace('_', ' ')}**\n\n{pred_label}\n\n*Why?* {explanation}")
-                else:
-                    st.error(f"**{target_col.replace('_', ' ')}**\n\n{pred_label}\n\n*Why?* {explanation}")
+        # Consolidated Plotly Risk Bar Chart
+        risk_names_list = []
+        risk_scores_list = []
+        colors_list = []
+        
+        for target_col, info in risk_scores.items():
+            risk_names_list.append(target_col.replace('_', ' ').title())
+            risk_scores_list.append(info['score'])
+            if info['score'] == 0:
+                colors_list.append('#10b981') # Green
+            elif info['score'] == 1:
+                colors_list.append('#f59e0b') # Yellow
+            elif info['score'] == 2:
+                colors_list.append('#ef4444') # Red
+            else:
+                colors_list.append('#991b1b') # Dark Red
+                
+        fig_risks = go.Figure(data=[
+            go.Bar(
+                x=risk_names_list, 
+                y=risk_scores_list,
+                marker_color=colors_list,
+                text=[info['label'] for info in risk_scores.values()],
+                textposition='auto',
+                width=0.5
+            )
+        ])
+        fig_risks.update_layout(
+            title="Diagnostic Risk Spectrum",
+            yaxis=dict(tickvals=[0, 1, 2, 3], ticktext=['Low', 'Moderate', 'High', 'Severe'], range=[0, 3.5]),
+            height=300,
+            margin=dict(l=20, r=20, t=50, b=20),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font={'color': "#f1f5f9"}
+        )
+        st.plotly_chart(fig_risks, use_container_width=True)
+        
+        st.subheader("Detailed Risk Explanations")
+        for target_col, info in risk_scores.items():
+            if info['score'] > 0:
+                with st.expander(f"⚠️ {target_col.replace('_', ' ').title()} - {info['label']}"):
+                    st.write(f"**Why?** {explanations_text[target_col]}")
+            else:
+                with st.expander(f"✅ {target_col.replace('_', ' ').title()} - Low Risk"):
+                    st.write("No significant risk factors identified for this condition.")
                     
         st.divider()
         max_score = max([info['score'] for info in risk_scores.values()])
@@ -216,44 +336,32 @@ if model is not None:
             
         # Report Generation
         st.subheader("Download Your Diagnostic Report")
-        st.write("Get a comprehensive summary of your predictions and factors.")
+        st.write("Get a comprehensive professional PDF summary of your predictions and factors.")
         
-        report_lines = []
-        report_lines.append("LUCIDEPOCH CLINICAL SLEEP ASSESSMENT REPORT")
-        report_lines.append("===========================================\n")
-        report_lines.append("PATIENT METRICS:")
-        report_lines.append(f"- Age: {age}")
-        report_lines.append(f"- Gender: {gender}")
-        report_lines.append(f"- Sleep duration: {sleep_duration} hrs")
-        report_lines.append(f"- Sleep efficiency: {int(sleep_efficiency*100)}%")
-        report_lines.append(f"- REM sleep: {rem_sleep}%")
-        report_lines.append(f"- Deep sleep: {deep_sleep}%")
-        report_lines.append(f"- Light sleep: {light_sleep}%\n")
-        
-        report_lines.append("DIAGNOSTIC RISK PREDICTIONS:")
-        for target_col, info in risk_scores.items():
-            report_lines.append(f"- {target_col.replace('_', ' ').upper()}: {info['label']}")
-            if info['score'] > 0 and explanations_text[target_col]:
-                clean_exp = explanations_text[target_col].replace('**', '')
-                report_lines.append(f"  Reason: {clean_exp}")
-        
-        report_lines.append("\nRECOMMENDATION:")
-        if max_score > 0:
-            report_lines.append("Medical Consultation Recommended.")
-            report_lines.append(f"Based on your metrics, your most prominent risk factor is {risk_names.replace('**', '')}.")
-            report_lines.append("We strongly recommend consulting with a doctor or sleep specialist for a professional diagnosis and guidance.")
-        else:
-            report_lines.append("Your predicted sleep disorder risks are low. Keep up the good sleep hygiene!")
+        try:
+            # Reconstruct patient_data for the report
+            report_patient_data = {
+                'patient_id': patient_id_input if 'patient_id_input' in locals() and patient_id_input else 'N/A',
+                'age': age,
+                'gender': gender,
+                'sleep_duration': sleep_duration,
+                'sleep_efficiency': sleep_efficiency,
+                'rem_sleep': rem_sleep,
+                'deep_sleep': deep_sleep,
+                'light_sleep': light_sleep
+            }
             
-        report_text = "\n".join(report_lines)
-        
-        st.download_button(
-            label="📄 Download Diagnostic Report",
-            data=report_text,
-            file_name="lucidepoch_diagnostic_report.txt",
-            mime="text/plain",
-            type="secondary"
-        )
+            pdf_bytes = generate_pdf_report(report_patient_data, risk_scores, explanations_text, max_score, risk_names)
+            
+            st.download_button(
+                label="📄 Download Diagnostic PDF Report",
+                data=pdf_bytes,
+                file_name=f"lucidepoch_report_{report_patient_data['patient_id']}.pdf",
+                mime="application/pdf",
+                type="secondary"
+            )
+        except Exception as e:
+            st.error(f"Could not generate PDF report: {e}")
             
     with tab2:
         st.subheader("Explainable AI (XAI) Simulator")
@@ -326,6 +434,46 @@ if model is not None:
             )
         else:
             st.warning("Historical data not found.")
+
+    with tab4:
+        st.subheader("Batch Patient Processing")
+        st.write("Upload a CSV file containing multiple patients to generate predictions in bulk. This is ideal for processing daily clinic intake.")
+        
+        uploaded_file = st.file_uploader("Upload Patient CSV", type=['csv'])
+        st.info("Required Columns: Age, Gender, Sleep duration, Sleep efficiency, REM sleep percentage, Deep sleep percentage, Light sleep percentage")
+        
+        if uploaded_file is not None:
+            try:
+                batch_df = pd.read_csv(uploaded_file)
+                st.write("Preview of uploaded data:")
+                st.dataframe(batch_df.head())
+                
+                if st.button("Process Batch Predictions", type="primary"):
+                    with st.spinner("Processing patients..."):
+                        process_df = batch_df.copy()
+                        # Encode gender
+                        process_df['Gender'] = le_gender.transform(process_df['Gender'])
+                        process_df = process_df[feature_cols]
+                        
+                        batch_preds = model.predict(process_df)
+                        
+                        target_cols = list(le_targets.keys())
+                        for i, target_col in enumerate(target_cols):
+                            batch_df[f'{target_col}_Risk'] = le_targets[target_col].inverse_transform(batch_preds[:, i])
+                            
+                        st.success(f"Batch processing complete for {len(batch_df)} patients!")
+                        st.dataframe(batch_df)
+                        
+                        csv_output = batch_df.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="📥 Download Batch Results (CSV)",
+                            data=csv_output,
+                            file_name="batch_predictions_results.csv",
+                            mime="text/csv",
+                            type="secondary"
+                        )
+            except Exception as e:
+                st.error(f"Error processing batch file. Please ensure it matches the required format. Details: {e}")
 
 else:
     st.warning("Model files not found. Please run `train_model.py` first to generate the models.")

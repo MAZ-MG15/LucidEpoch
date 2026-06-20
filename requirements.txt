@@ -4,3 +4,5 @@ streamlit
 joblib
 shap
 matplotlib
+fpdf2
+plotly
