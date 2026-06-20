@@ -13,8 +13,15 @@ db_utils.init_db()
 
 st.set_page_config(page_title="Sleep Disorder Risk Predictor", layout="wide", page_icon="🌙")
 
+st.warning("⚠️ **CLINICAL DISCLAIMER:** This dashboard is a research prototype developed for academic purposes. It is not a certified medical device and should not be used as a substitute for professional medical advice, diagnosis, or treatment.")
+
 st.markdown("""
     <style>
+        /* Hide Streamlit chrome */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
+        
         /* Glassmorphism premium styling */
         .stApp {
             background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
@@ -159,9 +166,9 @@ if model is not None:
     gender = st.sidebar.selectbox("Gender", options=["Male", "Female"], index=default_gender_idx)
     sleep_duration = st.sidebar.slider("Sleep duration (hours)", min_value=0.0, max_value=24.0, value=st.session_state.get('sleep_duration', 7.0), step=0.1)
     sleep_efficiency = st.sidebar.slider("Sleep efficiency", min_value=0.0, max_value=1.0, value=st.session_state.get('sleep_efficiency', 0.85), step=0.01)
-    rem_sleep = st.sidebar.slider("REM sleep percentage (%)", min_value=0, max_value=100, value=st.session_state.get('rem_sleep', 20))
-    deep_sleep = st.sidebar.slider("Deep sleep percentage (%)", min_value=0, max_value=100, value=st.session_state.get('deep_sleep', 20))
-    light_sleep = st.sidebar.slider("Light sleep percentage (%)", min_value=0, max_value=100, value=st.session_state.get('light_sleep', 60))
+    rem_sleep = st.sidebar.slider("REM sleep percentage (Healthy: 20-25%)", min_value=0, max_value=100, value=st.session_state.get('rem_sleep', 25))
+    deep_sleep = st.sidebar.slider("Deep sleep percentage (Healthy: 15-20%)", min_value=0, max_value=100, value=st.session_state.get('deep_sleep', 20))
+    light_sleep = st.sidebar.slider("Light sleep percentage (Healthy: 45-55%)", min_value=0, max_value=100, value=st.session_state.get('light_sleep', 55))
     
     st.sidebar.divider()
     
@@ -193,6 +200,9 @@ if model is not None:
             st.sidebar.warning("Please enter a Patient ID to save.")
             
     predict_clicked = st.sidebar.button("Predict Risks", type="primary")
+    
+    with st.sidebar.expander("📝 Methodology Note"):
+        st.caption("This live prototype uses a simplified feature set (Age, Gender, Sleep Duration, Efficiency, and Stage Percentages) for inference. Features like *Awakenings* and *Alcohol Consumption* utilized in the Chapter 3.3 OSA derivation were excluded from this specific deployment build to maintain real-time stability with the serialized model.")
 
     input_data = {
         'Age': age,
@@ -218,44 +228,6 @@ if model is not None:
     tab1, tab2, tab3, tab4 = st.tabs(["Overview & Predictions", "Explainable AI (SHAP)", "Historical Population Data", "Batch Processing"])
     
     with tab1:
-        st.subheader("Current Wearable Metrics")
-        
-        # Plotly Gauges and Charts
-        fig_col1, fig_col2 = st.columns(2)
-        
-        with fig_col1:
-            # Sleep Efficiency Gauge
-            fig_eff = go.Figure(go.Indicator(
-                mode = "gauge+number",
-                value = sleep_efficiency * 100,
-                title = {'text': "Sleep Score (Efficiency)"},
-                gauge = {
-                    'axis': {'range': [0, 100]},
-                    'bar': {'color': "#00f2fe"},
-                    'steps': [
-                        {'range': [0, 60], 'color': "rgba(231, 76, 60, 0.2)"},
-                        {'range': [60, 85], 'color': "rgba(243, 156, 18, 0.2)"},
-                        {'range': [85, 100], 'color': "rgba(46, 204, 113, 0.2)"}
-                    ],
-                }
-            ))
-            fig_eff.update_layout(height=280, margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
-            st.plotly_chart(fig_eff, use_container_width=True)
-            
-        with fig_col2:
-            # Sleep Stages Donut
-            stages = ['Deep Sleep', 'Light Sleep', 'REM Sleep']
-            values = [deep_sleep, light_sleep, rem_sleep]
-            fig_stages = go.Figure(data=[go.Pie(labels=stages, values=values, hole=.6, marker_colors=['#3b82f6', '#8b5cf6', '#10b981'])])
-            fig_stages.update_layout(title_text="Sleep Stages Breakdown", height=280, margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
-            st.plotly_chart(fig_stages, use_container_width=True)
-            
-        # Quick metrics row underneath
-        mcol1, mcol2 = st.columns(2)
-        mcol1.metric("Total Sleep Duration", f"{sleep_duration} hrs")
-        mcol2.metric("Patient Profile", f"{age} yrs, {gender}")
-        
-        st.divider()
         st.subheader("Diagnostic Risk Predictions")
         
         if predict_clicked or 'predictions' not in st.session_state:
@@ -265,7 +237,6 @@ if model is not None:
             prediction = st.session_state['predictions']
             
         target_cols = list(le_targets.keys())
-        cols = st.columns(len(target_cols))
         
         risk_scores = {}
         explanations_text = {}
@@ -346,6 +317,52 @@ if model is not None:
             st.error(f"⚠️ **Medical Consultation Recommended**\n\nBased on your metrics, your most prominent risk factor is {risk_names}. We strongly recommend consulting with a doctor or sleep specialist for a professional diagnosis and guidance.")
         else:
             st.success("🎉 **Great News!**\n\nYour predicted sleep disorder risks are low. Keep up the good sleep hygiene!")
+            
+        st.divider()
+        st.subheader("Current Wearable Metrics")
+        
+        # Plotly Gauges and Charts
+        fig_col1, fig_col2 = st.columns(2)
+        
+        with fig_col1:
+            # Sleep Efficiency Gauge
+            fig_eff = go.Figure(go.Indicator(
+                mode = "gauge+number",
+                value = sleep_efficiency * 100,
+                title = {'text': "Sleep Efficiency: %{value}%"},
+                gauge = {
+                    'axis': {'range': [0, 100]},
+                    'bar': {'color': "rgba(255,255,255,0.8)"},
+                    'steps': [
+                        {'range': [0, 79.9], 'color': "rgba(231, 76, 60, 0.6)"},
+                        {'range': [79.9, 84.9], 'color': "rgba(243, 156, 18, 0.6)"},
+                        {'range': [84.9, 100], 'color': "rgba(46, 204, 113, 0.6)"}
+                    ],
+                }
+            ))
+            fig_eff.update_layout(height=280, margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
+            st.plotly_chart(fig_eff, use_container_width=True)
+            
+        with fig_col2:
+            # Sleep Stages Donut
+            stages = ['Deep Sleep', 'Light Sleep', 'REM Sleep']
+            values = [deep_sleep, light_sleep, rem_sleep]
+            fig_stages = go.Figure(data=[go.Pie(labels=stages, values=values, hole=.6, marker_colors=['#3b82f6', '#8b5cf6', '#10b981'])])
+            fig_stages.update_layout(title_text="Sleep Stages Breakdown", height=280, margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
+            st.plotly_chart(fig_stages, use_container_width=True)
+            
+        # Quick metrics row underneath
+        mcol1, mcol2, mcol3 = st.columns(3)
+        mcol1.metric("Patient Profile", f"{age} yrs, {gender}")
+        mcol2.metric("Total Sleep Duration", f"{sleep_duration} hrs")
+        
+        # Calculate Estimated Wake Time (WASO)
+        if sleep_efficiency > 0:
+            time_in_bed = sleep_duration / sleep_efficiency
+            wake_time = time_in_bed - sleep_duration
+            mcol3.metric("Estimated Wake Time", f"{wake_time:.1f} hrs")
+        else:
+            mcol3.metric("Estimated Wake Time", "N/A")
             
         # Report Generation
         st.subheader("Download Your Diagnostic Report")
