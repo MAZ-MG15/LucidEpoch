@@ -158,22 +158,59 @@ if model is not None:
     st.sidebar.divider()
     st.sidebar.header("Wearable Data Simulator")
     
+    input_mode = st.sidebar.radio("Data Source Mode", ["⌚ Sync Wearable (Recommended)", "🛠️ Manual Override (Research)"])
+    is_manual = "Manual Override" in input_mode
+    
+    if not is_manual:
+        st.sidebar.info("Select a mock device to sync a validated patient profile from the clinical database.")
+        mock_device = st.sidebar.selectbox("Select Device API", ["Apple HealthKit", "Fitbit Web API", "Oura Ring Gen3", "Garmin Connect"])
+        if st.sidebar.button("🔄 Sync Device Data", use_container_width=True):
+            if not hist_data.empty:
+                import random
+                rand_idx = random.randint(0, len(hist_data)-1)
+                synced = hist_data.iloc[rand_idx]
+                
+                st.session_state['age'] = int(synced['Age'])
+                st.session_state['gender'] = synced['Gender']
+                st.session_state['sleep_duration'] = float(synced['Sleep duration'])
+                st.session_state['sleep_efficiency'] = float(synced['Sleep efficiency'])
+                
+                # Ensure they sum to 100 exactly
+                rem = float(synced['REM sleep percentage'])
+                deep = float(synced['Deep sleep percentage'])
+                light = float(synced['Light sleep percentage'])
+                total = rem + deep + light
+                if total > 0:
+                    rem = (rem / total) * 100
+                    deep = (deep / total) * 100
+                
+                st.session_state['rem_sleep'] = int(round(rem))
+                st.session_state['deep_sleep'] = int(round(deep))
+                st.session_state['light_sleep'] = 100 - st.session_state['rem_sleep'] - st.session_state['deep_sleep']
+                
+                st.session_state['sync_success'] = True
+    else:
+        st.sidebar.warning("⚠️ Manual Override active. For clinical stress-testing only.")
+        st.session_state['sync_success'] = False
+
+    st.sidebar.divider()
+    
     default_age = st.session_state.get('age', 30)
     default_gender = st.session_state.get('gender', "Male")
     default_gender_idx = 0 if default_gender == "Male" else 1
     
-    age = st.sidebar.number_input("Age", min_value=1, max_value=120, value=default_age)
-    gender = st.sidebar.selectbox("Gender", options=["Male", "Female"], index=default_gender_idx)
-    sleep_duration = st.sidebar.slider("Sleep duration (hours)", min_value=0.0, max_value=24.0, value=st.session_state.get('sleep_duration', 7.0), step=0.1)
-    sleep_efficiency = st.sidebar.slider("Sleep efficiency", min_value=0.0, max_value=1.0, value=st.session_state.get('sleep_efficiency', 0.85), step=0.01)
-    rem_sleep = st.sidebar.slider("REM sleep percentage (Healthy: 20-25%)", min_value=0, max_value=100, value=st.session_state.get('rem_sleep', 25))
-    deep_sleep = st.sidebar.slider("Deep sleep percentage (Healthy: 15-20%)", min_value=0, max_value=100, value=st.session_state.get('deep_sleep', 20))
-    light_sleep = st.sidebar.slider("Light sleep percentage (Healthy: 45-55%)", min_value=0, max_value=100, value=st.session_state.get('light_sleep', 55))
+    age = st.sidebar.number_input("Age", min_value=1, max_value=120, value=default_age, disabled=not is_manual)
+    gender = st.sidebar.selectbox("Gender", options=["Male", "Female"], index=default_gender_idx, disabled=not is_manual)
+    sleep_duration = st.sidebar.slider("Sleep duration (hours)", min_value=0.0, max_value=24.0, value=st.session_state.get('sleep_duration', 7.0), step=0.1, disabled=not is_manual)
+    sleep_efficiency = st.sidebar.slider("Sleep efficiency", min_value=0.0, max_value=1.0, value=st.session_state.get('sleep_efficiency', 0.85), step=0.01, disabled=not is_manual)
+    rem_sleep = st.sidebar.slider("REM sleep percentage (Healthy: 20-25%)", min_value=0, max_value=100, value=st.session_state.get('rem_sleep', 25), disabled=not is_manual)
+    deep_sleep = st.sidebar.slider("Deep sleep percentage (Healthy: 15-20%)", min_value=0, max_value=100, value=st.session_state.get('deep_sleep', 20), disabled=not is_manual)
+    light_sleep = st.sidebar.slider("Light sleep percentage (Healthy: 45-55%)", min_value=0, max_value=100, value=st.session_state.get('light_sleep', 55), disabled=not is_manual)
     
     st.sidebar.divider()
     
     total_sleep_stages = rem_sleep + deep_sleep + light_sleep
-    if total_sleep_stages != 100:
+    if is_manual and total_sleep_stages != 100:
         st.sidebar.error(f"⚠️ Invalid Input: Sleep stages currently sum to {total_sleep_stages}%. They must add up to exactly 100%.")
         st.error("Please adjust the sleep stage percentages in the sidebar to equal exactly 100% before viewing predictions.")
         st.stop()
