@@ -22,44 +22,46 @@ st.markdown("""
         footer {visibility: hidden;}
         header {visibility: hidden;}
         
-        /* Apple Health / Option A Styling */
+        /* Friendly Wellness Styling */
         .stApp {
-            background-color: #000000;
-            color: #ffffff;
+            background-color: #faf9f6;
+            color: #4b5563;
         }
         
         div[data-testid="metric-container"] {
-            background: transparent;
+            background: #ffffff;
             border: none;
-            border-bottom: 1px solid #333333;
-            padding: 15px 0px;
-            box-shadow: none;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
         }
         
         div[data-testid="stAlert"] {
-            border-radius: 8px !important;
-            border: 1px solid #333333;
-            background-color: transparent;
-            color: #ffffff;
+            border-radius: 12px !important;
+            border: none;
+            background-color: #ffffff;
+            color: #4b5563;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
         }
         
         /* Expander styling */
         div[data-testid="stExpander"] {
-            background: transparent;
+            background: #ffffff;
             border: none;
-            border-bottom: 1px solid #333333;
-            color: #ffffff;
-            margin-bottom: 8px;
+            border-radius: 12px;
+            color: #4b5563;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            margin-bottom: 12px;
         }
         
         /* Headers */
         h1, h2, h3, p, label {
-            color: #ffffff !important;
-            font-weight: 500 !important;
+            color: #374151 !important;
+            font-family: 'Inter', sans-serif;
         }
         
         hr {
-            border-color: #333333;
+            border-color: #f3f4f6;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -162,15 +164,15 @@ if model is not None:
                 st.session_state['light_sleep'] = loaded_data['light_sleep']
     
     st.sidebar.divider()
-    st.sidebar.header("Wearable Data Simulator")
+    st.sidebar.header("Connect Your Smartwatch")
     
-    input_mode = st.sidebar.radio("Data Source Mode", ["⌚ Sync Wearable (Recommended)", "🛠️ Manual Override (Research)"])
-    is_manual = "Manual Override" in input_mode
+    input_mode = st.sidebar.radio("Data Source", ["⌚ Sync Smartwatch (Recommended)", "🛠️ Manual Entry"])
+    is_manual = "Manual Entry" in input_mode
     
     if not is_manual:
-        st.sidebar.info("Select a mock device to sync a validated patient profile from the clinical database.")
-        mock_device = st.sidebar.selectbox("Select Device API", ["Apple HealthKit", "Fitbit Web API", "Oura Ring Gen3", "Garmin Connect"])
-        if st.sidebar.button("🔄 Sync Device Data", use_container_width=True):
+        st.sidebar.info("Select your smartwatch to securely sync your sleep data.")
+        mock_device = st.sidebar.selectbox("Select Device", ["Apple Watch", "Fitbit", "Oura Ring", "Garmin"])
+        if st.sidebar.button("🔄 Sync Sleep Data", use_container_width=True):
             if not hist_data.empty:
                 import random
                 rand_idx = random.randint(0, len(hist_data)-1)
@@ -267,341 +269,139 @@ if model is not None:
         
     input_df = input_df[feature_cols]
 
-    # Create Tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["Overview & Predictions", "Explainable AI (SHAP)", "Historical Population Data", "Batch Processing"])
+    # Simple Storybook Flow (No Tabs)
+    if predict_clicked or 'predictions' not in st.session_state:
+        prediction = model.predict(input_df)
+        st.session_state['predictions'] = prediction
+    else:
+        prediction = st.session_state['predictions']
+        
+    target_cols = list(le_targets.keys())
+    risk_scores = {}
+    explanations_text = {}
     
-    with tab1:
-        if predict_clicked or 'predictions' not in st.session_state:
-            prediction = model.predict(input_df)
-            st.session_state['predictions'] = prediction
+    for i, target_col in enumerate(target_cols):
+        pred_numeric = prediction[0][i]
+        pred_label = le_targets[target_col].inverse_transform([pred_numeric])[0]
+        
+        formatted_label = str(pred_label).lower()
+        score = 0
+        if 'severe' in formatted_label or 'very high' in formatted_label:
+            score = 3
+        elif 'high' in formatted_label:
+            score = 2
+        elif 'moderate' in formatted_label:
+            score = 1
+            
+        risk_scores[target_col] = {'label': pred_label, 'score': score}
+        
+        explanation = ""
+        if score > 0:
+            explanation = get_simple_explanation(model, input_df, i, feature_cols, pred_numeric)
+        explanations_text[target_col] = explanation
+        
+    st.header("Good morning! ☀️")
+    st.write("Here is a gentle look at how you slept last night.")
+    
+    # Row 1: KPI Cards
+    mcol1, mcol2, mcol3 = st.columns(3)
+    mcol1.metric("Time Asleep", f"{sleep_duration} hrs")
+    mcol2.metric("Sleep Quality", f"{int(sleep_efficiency * 100)}%")
+    if sleep_efficiency > 0:
+        time_in_bed = sleep_duration / sleep_efficiency
+        wake_time = time_in_bed - sleep_duration
+        mcol3.metric("Time Awake in Bed", f"{wake_time:.1f} hrs")
+    else:
+        mcol3.metric("Time Awake in Bed", "N/A")
+        
+    st.divider()
+    st.subheader("Your Sleep Health Check 🌙")
+    st.write("We analyzed your sleep patterns to check for any signs of common sleep disruptions.")
+    
+    # Consolidated Plotly Risk Bar Chart
+    risk_names_list = []
+    risk_scores_list = []
+    colors_list = []
+    
+    for target_col, info in risk_scores.items():
+        risk_names_list.append(target_col.replace('_', ' ').title())
+        risk_scores_list.append(info['score'])
+        if info['score'] == 0:
+            colors_list.append('#86efac') # Soft mint green
+        elif info['score'] == 1:
+            colors_list.append('#fcd34d') # Soft yellow
+        elif info['score'] == 2:
+            colors_list.append('#fca5a5') # Soft red
         else:
-            prediction = st.session_state['predictions']
+            colors_list.append('#f87171') # Slightly darker soft red
             
-        target_cols = list(le_targets.keys())
-        risk_scores = {}
-        explanations_text = {}
-        
-        for i, target_col in enumerate(target_cols):
-            pred_numeric = prediction[0][i]
-            pred_label = le_targets[target_col].inverse_transform([pred_numeric])[0]
-            
-            formatted_label = str(pred_label).lower()
-            score = 0
-            if 'severe' in formatted_label or 'very high' in formatted_label:
-                score = 3
-            elif 'high' in formatted_label:
-                score = 2
-            elif 'moderate' in formatted_label:
-                score = 1
-                
-            risk_scores[target_col] = {'label': pred_label, 'score': score}
-            
-            explanation = ""
-            if score > 0:
-                explanation = get_simple_explanation(model, input_df, i, feature_cols, pred_numeric)
-            explanations_text[target_col] = explanation
-            
-        # Option A: Vertical Apple Health Style Feed
-        st.subheader("Today's Vitals")
-        
-        # Row 1: KPI Cards
-        mcol1, mcol2, mcol3 = st.columns(3)
-        mcol1.metric("Total Sleep", f"{sleep_duration} hrs")
-        mcol2.metric("Efficiency", f"{int(sleep_efficiency * 100)}%")
-        if sleep_efficiency > 0:
-            time_in_bed = sleep_duration / sleep_efficiency
-            wake_time = time_in_bed - sleep_duration
-            mcol3.metric("Est. Wake Time", f"{wake_time:.1f} hrs")
-        else:
-            mcol3.metric("Est. Wake Time", "N/A")
-            
-        st.write("")
-        st.subheader("Sleep Architecture")
-        
-        fig_col1, fig_col2 = st.columns(2)
-        with fig_col1:
-            # Sleep Efficiency Gauge
-            fig_eff = go.Figure(go.Indicator(
-                mode = "gauge+number",
-                value = sleep_efficiency * 100,
-                title = {'text': "Efficiency Score", 'font': {'color': '#ffffff'}},
-                gauge = {
-                    'axis': {'range': [0, 100], 'tickcolor': '#ffffff'},
-                    'bar': {'color': "#ffffff"},
-                    'steps': [
-                        {'range': [0, 79.9], 'color': "rgba(255, 59, 48, 0.6)"}, # Neon Red
-                        {'range': [79.9, 84.9], 'color': "rgba(255, 149, 0, 0.6)"}, # Neon Orange
-                        {'range': [84.9, 100], 'color': "rgba(52, 199, 89, 0.6)"} # Neon Green
-                    ],
-                }
-            ))
-            fig_eff.update_layout(height=250, margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#ffffff"})
-            st.plotly_chart(fig_eff, use_container_width=True)
-            
-        with fig_col2:
-            # Sleep Stages Donut
-            stages = ['Deep Sleep', 'Light Sleep', 'REM Sleep']
-            values = [deep_sleep, light_sleep, rem_sleep]
-            fig_stages = go.Figure(data=[go.Pie(labels=stages, values=values, hole=.7, marker_colors=['#0A84FF', '#5E5CE6', '#32ADE6'])])
-            fig_stages.update_layout(height=250, margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#ffffff"})
-            st.plotly_chart(fig_stages, use_container_width=True)
-            
-        st.divider()
-        st.subheader("AI Risk Assessment")
-        
-        # Consolidated Plotly Risk Bar Chart
-        risk_names_list = []
-        risk_scores_list = []
-        colors_list = []
-        
-        for target_col, info in risk_scores.items():
-            risk_names_list.append(target_col.replace('_', ' ').title())
-            risk_scores_list.append(info['score'])
-            if info['score'] == 0:
-                colors_list.append('#34C759') # Neon Green
-            elif info['score'] == 1:
-                colors_list.append('#FF9500') # Neon Orange
-            elif info['score'] == 2:
-                colors_list.append('#FF3B30') # Neon Red
-            else:
-                colors_list.append('#D70015') # Dark Neon Red
-                
-        fig_risks = go.Figure(data=[
-            go.Bar(
-                x=risk_names_list, 
-                y=risk_scores_list,
-                marker_color=colors_list,
-                text=[info['label'] for info in risk_scores.values()],
-                textposition='auto',
-                width=0.4
-            )
-        ])
-        fig_risks.update_layout(
-            yaxis=dict(tickvals=[0, 1, 2, 3], ticktext=['Low', 'Moderate', 'High', 'Severe'], range=[0, 3.5], gridcolor="#333333"),
-            height=300,
-            margin=dict(l=20, r=20, t=10, b=20),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font={'color': "#ffffff"}
+    fig_risks = go.Figure(data=[
+        go.Bar(
+            x=risk_names_list, 
+            y=risk_scores_list,
+            marker_color=colors_list,
+            text=[info['label'] for info in risk_scores.values()],
+            textposition='auto',
+            width=0.4
         )
-        st.plotly_chart(fig_risks, use_container_width=True)
-        
-        # Detailed Risk Explanations
-        st.write("#### Clinical Insights")
-        for target_col, info in risk_scores.items():
-            if info['score'] > 0:
-                with st.expander(f"⚠️ {target_col.replace('_', ' ').title()} - {info['label']}"):
-                    st.write(f"{explanations_text[target_col]}")
-            else:
-                with st.expander(f"✅ {target_col.replace('_', ' ').title()} - Low Risk"):
-                    st.write("No significant risk factors identified.")
-                    
-        max_score = max([info['score'] for info in risk_scores.values()])
-        
-        if max_score > 0:
-            most_severe_risks = [disorder for disorder, info in risk_scores.items() if info['score'] == max_score]
-            risk_names = ", ".join([f"{r.replace('_', ' ')}" for r in most_severe_risks])
-            st.error(f"⚠️ **Medical Consultation Recommended**\n\nBased on your metrics, your most prominent risk factor is {risk_names}. Please consult with a specialist.")
+    ])
+    fig_risks.update_layout(
+        yaxis=dict(tickvals=[0, 1, 2, 3], ticktext=['All Good', 'Slightly Elevated', 'High', 'Severe'], range=[0, 3.5], gridcolor="#f3f4f6"),
+        height=300,
+        margin=dict(l=20, r=20, t=10, b=20),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font={'color': "#4b5563"}
+    )
+    st.plotly_chart(fig_risks, use_container_width=True)
+    
+    # Detailed Risk Explanations
+    st.subheader("Why Did We Give You This Score?")
+    for target_col, info in risk_scores.items():
+        if info['score'] > 0:
+            with st.expander(f"🌼 {target_col.replace('_', ' ').title()} - {info['label']}"):
+                st.write(f"{explanations_text[target_col]}")
         else:
-            st.success("🎉 **All Clear**\n\nYour predicted sleep disorder risks are low. Keep up the good work!")
-            
-        # Report Generation
-        st.subheader("Download Your Diagnostic Report")
-        st.write("Get a comprehensive professional PDF summary of your predictions and factors.")
-        
-        try:
-            # Reconstruct patient_data for the report
-            report_patient_data = {
-                'patient_id': patient_id_input if 'patient_id_input' in locals() and patient_id_input else 'N/A',
-                'age': age,
-                'gender': gender,
-                'sleep_duration': sleep_duration,
-                'sleep_efficiency': sleep_efficiency,
-                'rem_sleep': rem_sleep,
-                'deep_sleep': deep_sleep,
-                'light_sleep': light_sleep
-            }
-            
-            pdf_bytes = generate_pdf_report(report_patient_data, risk_scores, explanations_text, max_score, risk_names)
-            
-            st.download_button(
-                label="📄 Download Diagnostic PDF Report",
-                data=pdf_bytes,
-                file_name=f"lucidepoch_report_{report_patient_data['patient_id']}.pdf",
-                mime="application/pdf",
-                type="secondary"
-            )
-        except Exception as e:
-            st.error(f"Could not generate PDF report: {e}")
-            
-    with tab2:
-        st.subheader("Explainable AI (XAI) Simulator")
-        st.write("Understand the specific factors driving each risk prediction. We query the SHAP explainer to see how your physiological features push your risk up or down.")
-        
-        st.info("💡 **How to read this chart:** \n\n- **Red bars** represent factors that increase the probability of this risk.\n- **Blue bars** represent factors that decrease the probability of this risk.\n- The size of the bar indicates the magnitude of the impact.")
-        
-        selected_target = st.selectbox("Select sleep condition to analyze:", target_cols)
-        target_idx = target_cols.index(selected_target)
-        
-        # MultiOutputClassifier wraps individual classifiers
-        single_model = model.estimators_[target_idx]
-        
-        try:
-            explainer = shap.TreeExplainer(single_model)
-            shap_values = explainer.shap_values(input_df)
-            
-            # Use the prediction index to show the explanation for the predicted class
-            pred_numeric = prediction[0][target_idx]
-            
-            if isinstance(shap_values, list):
-                if pred_numeric < len(shap_values):
-                    shap_vals_to_plot = shap_values[pred_numeric][0]
-                    expected_value = explainer.expected_value[pred_numeric]
-                else:
-                    shap_vals_to_plot = shap_values[-1][0]
-                    expected_value = explainer.expected_value[-1]
-            elif len(shap_values.shape) == 3:
-                # Shape is (num_samples, num_features, num_classes)
-                if pred_numeric < shap_values.shape[2]:
-                    shap_vals_to_plot = shap_values[0, :, pred_numeric]
-                    expected_value = explainer.expected_value[pred_numeric]
-                else:
-                    shap_vals_to_plot = shap_values[0, :, -1]
-                    expected_value = explainer.expected_value[-1]
-            else:
-                shap_vals_to_plot = shap_values[0]
-                expected_value = explainer.expected_value
+            with st.expander(f"✨ {target_col.replace('_', ' ').title()} - Looking Good!"):
+                st.write("We didn't find any significant disruptions here. Keep up the great habits!")
                 
-            predicted_label = le_targets[selected_target].inverse_transform([pred_numeric])[0]
-            st.markdown(f"**Feature Impact for predicting '{predicted_label}' in {selected_target.replace('_', ' ')}:**")
-            
-            # Replace fragile matplotlib force plot with robust Plotly Bar Chart
-            shap_df = pd.DataFrame({
-                'Feature': feature_cols,
-                'SHAP Value': shap_vals_to_plot,
-                'Feature Value': input_df.iloc[0].values
-            })
-            
-            # Sort by absolute impact for better visualization
-            shap_df['Abs Value'] = shap_df['SHAP Value'].abs()
-            shap_df = shap_df.sort_values(by='Abs Value', ascending=True)
-            
-            # Colors: Neon Red for increasing probability, Neon Blue for decreasing
-            bar_colors = ['#FF3B30' if val > 0 else '#0A84FF' for val in shap_df['SHAP Value']]
-            
-            hover_text = [
-                f"Feature: {row['Feature']}<br>Value: {row['Feature Value']}<br>Impact: {row['SHAP Value']:.4f}"
-                for _, row in shap_df.iterrows()
-            ]
-            
-            fig_shap = go.Figure(go.Bar(
-                x=shap_df['SHAP Value'],
-                y=shap_df['Feature'],
-                orientation='h',
-                marker_color=bar_colors,
-                text=shap_df['SHAP Value'].round(3),
-                textposition='auto',
-                hovertext=hover_text,
-                hoverinfo='text'
-            ))
-            
-            fig_shap.update_layout(
-                height=400,
-                margin=dict(l=20, r=20, t=20, b=20),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font={'color': "#ffffff"},
-                xaxis=dict(gridcolor="#333333", zerolinecolor="#ffffff", zerolinewidth=2, title="Impact on Prediction"),
-                yaxis=dict(gridcolor="#333333")
-            )
-            
-            st.plotly_chart(fig_shap, use_container_width=True)
-            st.caption("Red bars push the probability of this specific outcome higher; blue bars push it lower.")
-        except Exception as e:
-            st.error(f"Could not generate SHAP explanation: {e}")
-
-    with tab3:
-        st.subheader("Historical Population Demographics")
-        st.write("Visualizations of the clinical dataset used to train the LucidEpoch framework.")
+    max_score = max([info['score'] for info in risk_scores.values()])
+    
+    if max_score > 0:
+        most_severe_risks = [disorder for disorder, info in risk_scores.items() if info['score'] == max_score]
+        risk_names = ", ".join([f"{r.replace('_', ' ')}" for r in most_severe_risks])
+        st.error(f"🌱 **Gentle Reminder:** We noticed some signs of {risk_names}. It might be helpful to chat with a sleep specialist just to make sure you are getting the rest you deserve.")
+    else:
+        st.success("🎉 **Sweet Dreams!** Your sleep health is looking wonderful. Keep prioritizing your rest.")
         
-        if not hist_data.empty:
-            dem_col1, dem_col2 = st.columns(2)
-            
-            with dem_col1:
-                # Age Distribution
-                fig_age = px.histogram(hist_data, x="Age", title="Age Distribution of Training Cohort", color_discrete_sequence=['#3b82f6'])
-                fig_age.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
-                st.plotly_chart(fig_age, use_container_width=True)
-                
-            with dem_col2:
-                # Gender Distribution
-                if 'Gender' in hist_data.columns:
-                    gender_counts = hist_data['Gender'].value_counts()
-                    fig_gender = go.Figure(data=[go.Pie(labels=gender_counts.index, values=gender_counts.values, hole=.4, marker_colors=['#8b5cf6', '#10b981'])])
-                    fig_gender.update_layout(title_text="Gender Breakdown", paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
-                    st.plotly_chart(fig_gender, use_container_width=True)
-                
-            st.divider()
-            
-            if 'OSA_Risk' in hist_data.columns:
-                osa_counts = hist_data['OSA_Risk'].value_counts().reset_index()
-                osa_counts.columns = ['Risk Level', 'Count']
-                fig_osa = px.bar(osa_counts, x='Risk Level', y='Count', title="Training Data: OSA Risk Labels", color='Risk Level',
-                                color_discrete_map={'Low OSA Risk': '#10b981', 'Moderate OSA Risk': '#f59e0b', 'High OSA Risk': '#ef4444', 'Severe OSA Risk': '#991b1b', 'Low': '#10b981', 'Moderate': '#f59e0b', 'High': '#ef4444'})
-                fig_osa.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
-                st.plotly_chart(fig_osa, use_container_width=True)
-            
-            with st.expander("📥 Download Raw Dataset (CSV)"):
-                st.write("For verification purposes, you can download the raw dataset used to train the model.")
-                csv = hist_data.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="Download historical_data.csv",
-                    data=csv,
-                    file_name='lucidepoch_historical_data.csv',
-                    mime='text/csv',
-                )
-        else:
-            st.warning("Historical data not found.")
-
-    with tab4:
-        st.subheader("Batch Patient Processing")
-        st.write("Upload a CSV file containing multiple patients to generate predictions in bulk. This is ideal for processing daily clinic intake.")
+    st.divider()
+    st.subheader("Download Your Summary")
+    st.write("Get a friendly PDF summary of your sleep health to save or share.")
+    
+    try:
+        # Reconstruct patient_data for the report
+        report_patient_data = {
+            'patient_id': patient_id_input if 'patient_id_input' in locals() and patient_id_input else 'N/A',
+            'age': age,
+            'gender': gender,
+            'sleep_duration': sleep_duration,
+            'sleep_efficiency': sleep_efficiency,
+            'rem_sleep': rem_sleep,
+            'deep_sleep': deep_sleep,
+            'light_sleep': light_sleep
+        }
         
-        uploaded_file = st.file_uploader("Upload Patient CSV", type=['csv'])
-        st.info("Required Columns: Age, Gender, Sleep duration, Sleep efficiency, REM sleep percentage, Deep sleep percentage, Light sleep percentage")
+        pdf_bytes = generate_pdf_report(report_patient_data, risk_scores, explanations_text, max_score, risk_names if max_score > 0 else "")
         
-        if uploaded_file is not None:
-            try:
-                batch_df = pd.read_csv(uploaded_file)
-                st.write("Preview of uploaded data:")
-                st.dataframe(batch_df.head())
-                
-                if st.button("Process Batch Predictions", type="primary"):
-                    with st.spinner("Processing patients..."):
-                        process_df = batch_df.copy()
-                        # Encode gender
-                        process_df['Gender'] = le_gender.transform(process_df['Gender'])
-                        process_df = process_df[feature_cols]
-                        
-                        batch_preds = model.predict(process_df)
-                        
-                        target_cols = list(le_targets.keys())
-                        for i, target_col in enumerate(target_cols):
-                            batch_df[f'{target_col}_Risk'] = le_targets[target_col].inverse_transform(batch_preds[:, i])
-                            
-                        st.success(f"Batch processing complete for {len(batch_df)} patients!")
-                        st.dataframe(batch_df)
-                        
-                        csv_output = batch_df.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            label="📥 Download Batch Results (CSV)",
-                            data=csv_output,
-                            file_name="batch_predictions_results.csv",
-                            mime="text/csv",
-                            type="secondary"
-                        )
-            except Exception as e:
-                st.error(f"Error processing batch file. Please ensure it matches the required format. Details: {e}")
+        st.download_button(
+            label="📄 Download PDF Summary",
+            data=pdf_bytes,
+            file_name=f"sleep_summary_{report_patient_data['patient_id']}.pdf",
+            mime="application/pdf",
+            type="primary"
+        )
+    except Exception as e:
+        st.error(f"Could not generate PDF summary: {e}")
 
 else:
     st.warning("Model files not found. Please run `train_model.py` first to generate the models.")
