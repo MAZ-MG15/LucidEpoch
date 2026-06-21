@@ -22,46 +22,46 @@ st.markdown("""
         footer {visibility: hidden;}
         header {visibility: hidden;}
         
-        /* Friendly Wellness Styling */
+        /* Midnight Dark Dashboard Styling */
         .stApp {
-            background-color: #faf9f6;
-            color: #4b5563;
+            background-color: #0f172a;
+            color: #f8fafc;
         }
         
         div[data-testid="metric-container"] {
-            background: #ffffff;
-            border: none;
+            background: #1e293b;
+            border: 1px solid #334155;
             padding: 20px;
-            border-radius: 20px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
         
         div[data-testid="stAlert"] {
             border-radius: 12px !important;
-            border: none;
-            background-color: #ffffff;
-            color: #4b5563;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            border: 1px solid #334155;
+            background-color: #1e293b;
+            color: #f8fafc;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
         
         /* Expander styling */
         div[data-testid="stExpander"] {
-            background: #ffffff;
-            border: none;
+            background: #1e293b;
+            border: 1px solid #334155;
             border-radius: 12px;
-            color: #4b5563;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            color: #f8fafc;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
             margin-bottom: 12px;
         }
         
         /* Headers */
         h1, h2, h3, p, label {
-            color: #374151 !important;
+            color: #f8fafc !important;
             font-family: 'Inter', sans-serif;
         }
         
         hr {
-            border-color: #f3f4f6;
+            border-color: #334155;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -330,13 +330,13 @@ if model is not None:
         risk_names_list.append(target_col.replace('_', ' ').title())
         risk_scores_list.append(info['score'])
         if info['score'] == 0:
-            colors_list.append('#86efac') # Soft mint green
+            colors_list.append('#10b981') # Green
         elif info['score'] == 1:
-            colors_list.append('#fcd34d') # Soft yellow
+            colors_list.append('#f59e0b') # Amber
         elif info['score'] == 2:
-            colors_list.append('#fca5a5') # Soft red
+            colors_list.append('#ef4444') # Red
         else:
-            colors_list.append('#f87171') # Slightly darker soft red
+            colors_list.append('#991b1b') # Dark red
             
     fig_risks = go.Figure(data=[
         go.Bar(
@@ -349,12 +349,12 @@ if model is not None:
         )
     ])
     fig_risks.update_layout(
-        yaxis=dict(tickvals=[0, 1, 2, 3], ticktext=['All Good', 'Slightly Elevated', 'High', 'Severe'], range=[0, 3.5], gridcolor="#f3f4f6"),
+        yaxis=dict(tickvals=[0, 1, 2, 3], ticktext=['All Good', 'Slightly Elevated', 'High', 'Severe'], range=[0, 3.5], gridcolor="#334155"),
         height=300,
         margin=dict(l=20, r=20, t=10, b=20),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
-        font={'color': "#4b5563"}
+        font={'color': "#f8fafc"}
     )
     st.plotly_chart(fig_risks, use_container_width=True)
     
@@ -462,7 +462,7 @@ if model is not None:
             shap_df['Abs Value'] = shap_df['SHAP Value'].abs()
             shap_df = shap_df.sort_values(by='Abs Value', ascending=True)
             
-            bar_colors = ['#FF3B30' if val > 0 else '#0A84FF' for val in shap_df['SHAP Value']]
+            bar_colors = ['#ef4444' if val > 0 else '#3b82f6' for val in shap_df['SHAP Value']]
             
             hover_text = [
                 f"Feature: {row['Feature']}<br>Value: {row['Feature Value']}<br>Impact: {row['SHAP Value']:.4f}"
@@ -485,9 +485,9 @@ if model is not None:
                 margin=dict(l=20, r=20, t=20, b=20),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                font={'color': "#4b5563"},
-                xaxis=dict(gridcolor="#f3f4f6", zerolinecolor="#4b5563", zerolinewidth=2, title="Impact on Prediction (SHAP Value)"),
-                yaxis=dict(gridcolor="#f3f4f6")
+                font={'color': "#f8fafc"},
+                xaxis=dict(gridcolor="#334155", zerolinecolor="#f8fafc", zerolinewidth=2, title="Impact on Prediction (SHAP Value)"),
+                yaxis=dict(gridcolor="#334155")
             )
             
             st.plotly_chart(fig_shap, use_container_width=True)
