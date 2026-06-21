@@ -62,6 +62,37 @@ st.markdown("""
         hr {
             border-color: #334155;
         }
+        
+        /* Custom Box Tabs */
+        button[data-baseweb="tab"] {
+            background-color: #1e293b !important;
+            border: 1px solid #334155 !important;
+            border-bottom: none !important;
+            border-radius: 8px 8px 0px 0px !important;
+            margin-right: 5px !important;
+            padding: 10px 20px !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        button[data-baseweb="tab"]:hover {
+            background-color: #334155 !important;
+        }
+        
+        button[data-baseweb="tab"][aria-selected="true"] {
+            background-color: #3b82f6 !important; /* Neon Blue */
+            border-color: #3b82f6 !important;
+            color: #ffffff !important;
+        }
+        
+        button[data-baseweb="tab"][aria-selected="true"] p {
+            color: #ffffff !important;
+            font-weight: bold !important;
+        }
+        
+        div[data-testid="stTabs"] > div {
+            border-bottom: 2px solid #334155;
+            padding-bottom: 0px !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
