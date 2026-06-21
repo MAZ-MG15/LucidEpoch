@@ -93,6 +93,33 @@ st.markdown("""
             border-bottom: 2px solid #334155;
             padding-bottom: 0px !important;
         }
+        
+        /* Sidebar Styling */
+        [data-testid="stSidebar"] {
+            background-color: #020617 !important;
+            border-right: 1px solid #334155 !important;
+        }
+        
+        [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
+            color: #3b82f6 !important; /* Neon Blue headers in sidebar */
+        }
+        
+        /* Primary Action Buttons */
+        button[kind="primary"] {
+            background-color: #3b82f6 !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 8px !important;
+            font-weight: bold !important;
+            padding: 5px 15px !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        button[kind="primary"]:hover {
+            background-color: #2563eb !important;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4) !important;
+            color: white !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
