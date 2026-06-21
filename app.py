@@ -269,7 +269,7 @@ if model is not None:
     input_df = input_df[feature_cols]
 
     # Create Clinical Tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["Overview & Predictions", "Explainable AI (SHAP)", "Historical Population Data", "Batch Processing"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview & Predictions", "🧠 Explainable AI (SHAP)", "📈 Historical Population Data", "🗃️ Batch Processing"])
     
     with tab1:
         if predict_clicked or 'predictions' not in st.session_state:
@@ -583,6 +583,16 @@ if model is not None:
                             batch_df[f'{target_col}_Risk'] = le_targets[target_col].inverse_transform(batch_preds[:, i])
                             
                         st.success(f"Batch processing complete for {len(batch_df)} patients!")
+                        
+                        # Add Visuals to Batch Processing
+                        st.write("### Batch Cohort Risk Overview")
+                        if 'OSA_Risk' in batch_df.columns:
+                            risk_counts = batch_df['OSA_Risk'].value_counts()
+                            fig_batch = go.Figure(data=[go.Pie(labels=risk_counts.index, values=risk_counts.values, hole=.4, 
+                                                               marker_colors=['#10b981', '#f59e0b', '#ef4444', '#991b1b'])])
+                            fig_batch.update_layout(title_text="OSA Risk Distribution in Batch", paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f8fafc"})
+                            st.plotly_chart(fig_batch, use_container_width=True)
+                        
                         st.dataframe(batch_df)
                         
                         csv_output = batch_df.to_csv(index=False).encode('utf-8')
