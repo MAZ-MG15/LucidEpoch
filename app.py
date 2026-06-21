@@ -22,39 +22,39 @@ st.markdown("""
         footer {visibility: hidden;}
         header {visibility: hidden;}
         
-        /* Clinical Light Mode Styling */
+        /* Premium Midnight Styling */
         .stApp {
-            background-color: #f8fafc;
-            color: #0f172a;
+            background-color: #0f172a;
+            color: #f1f5f9;
         }
         
         div[data-testid="metric-container"] {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
+            background: #1e293b;
+            border: 1px solid rgba(14, 165, 233, 0.2);
             padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
             transition: all 0.3s ease;
         }
         div[data-testid="metric-container"]:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 25px rgba(14, 165, 233, 0.15);
             border-color: #0ea5e9;
         }
         
         div[data-testid="stAlert"] {
             border-radius: 8px !important;
-            border: 1px solid #e2e8f0;
-            background-color: #ffffff;
-            color: #0f172a;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background-color: #1e293b;
+            color: #f1f5f9;
         }
         
         /* Expander styling */
         div[data-testid="stExpander"] {
-            background: #ffffff;
+            background: #1e293b;
             border-radius: 8px;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: #f1f5f9;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -296,20 +296,94 @@ if model is not None:
                 explanation = get_simple_explanation(model, input_df, i, feature_cols, pred_numeric)
             explanations_text[target_col] = explanation
             
-        # Split Screen Layout
-        split_left, split_right = st.columns([1, 1], gap="large")
+        # Hero Dashboard Layout
+        st.subheader("Patient Profile")
+        # Quick metrics row at top
+        mcol1, mcol2, mcol3 = st.columns(3)
+        mcol1.metric("Patient Demographics", f"{age} yrs, {gender}")
+        mcol2.metric("Total Sleep Duration", f"{sleep_duration} hrs")
         
-        with split_left:
-            st.subheader("Current Wearable Metrics")
+        if sleep_efficiency > 0:
+            time_in_bed = sleep_duration / sleep_efficiency
+            wake_time = time_in_bed - sleep_duration
+            mcol3.metric("Estimated Wake Time", f"{wake_time:.1f} hrs")
+        else:
+            mcol3.metric("Estimated Wake Time", "N/A")
             
+        st.divider()
+        st.subheader("Diagnostic Risk Spectrum")
+        
+        # Consolidated Plotly Risk Bar Chart (Full Width)
+        risk_names_list = []
+        risk_scores_list = []
+        colors_list = []
+        
+        for target_col, info in risk_scores.items():
+            risk_names_list.append(target_col.replace('_', ' ').title())
+            risk_scores_list.append(info['score'])
+            if info['score'] == 0:
+                colors_list.append('#10b981') # Green
+            elif info['score'] == 1:
+                colors_list.append('#f59e0b') # Yellow
+            elif info['score'] == 2:
+                colors_list.append('#ef4444') # Red
+            else:
+                colors_list.append('#991b1b') # Dark Red
+                
+        fig_risks = go.Figure(data=[
+            go.Bar(
+                x=risk_names_list, 
+                y=risk_scores_list,
+                marker_color=colors_list,
+                text=[info['label'] for info in risk_scores.values()],
+                textposition='auto',
+                width=0.4
+            )
+        ])
+        fig_risks.update_layout(
+            yaxis=dict(tickvals=[0, 1, 2, 3], ticktext=['Low', 'Moderate', 'High', 'Severe'], range=[0, 3.5], gridcolor="rgba(255,255,255,0.1)"),
+            height=350,
+            margin=dict(l=20, r=20, t=30, b=20),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font={'color': "#f1f5f9"}
+        )
+        st.plotly_chart(fig_risks, use_container_width=True)
+        
+        # Detailed Risk Explanations in columns underneath
+        st.write("#### Detailed AI Risk Explanations")
+        for target_col, info in risk_scores.items():
+            if info['score'] > 0:
+                with st.expander(f"⚠️ {target_col.replace('_', ' ').title()} - {info['label']}"):
+                    st.write(f"**Why?** {explanations_text[target_col]}")
+            else:
+                with st.expander(f"✅ {target_col.replace('_', ' ').title()} - Low Risk"):
+                    st.write("No significant risk factors identified for this condition.")
+                    
+        st.divider()
+        max_score = max([info['score'] for info in risk_scores.values()])
+        
+        if max_score > 0:
+            most_severe_risks = [disorder for disorder, info in risk_scores.items() if info['score'] == max_score]
+            risk_names = ", ".join([f"**{r.replace('_', ' ')}**" for r in most_severe_risks])
+            st.error(f"⚠️ **Medical Consultation Recommended**\n\nBased on your metrics, your most prominent risk factor is {risk_names}. We strongly recommend consulting with a doctor or sleep specialist for a professional diagnosis.")
+        else:
+            st.success("🎉 **Great News!**\n\nYour predicted sleep disorder risks are low. Keep up the good sleep hygiene!")
+            
+        st.divider()
+        st.subheader("Wearable Data Evidence")
+        
+        fig_col1, fig_col2 = st.columns(2)
+        
+        with fig_col1:
             # Sleep Efficiency Gauge
             fig_eff = go.Figure(go.Indicator(
                 mode = "gauge+number",
                 value = sleep_efficiency * 100,
-                title = {'text': "Sleep Efficiency: %{value}%", 'font': {'color': '#0f172a'}},
+                title = {'text': "Sleep Efficiency: %{value}%", 'font': {'color': '#f1f5f9'}},
                 gauge = {
-                    'axis': {'range': [0, 100], 'tickcolor': '#0f172a'},
-                    'bar': {'color': "rgba(15,23,42,0.8)"},
+                    'axis': {'range': [0, 100], 'tickcolor': '#f1f5f9'},
+                    'bar': {'color': "rgba(255,255,255,0.8)"},
                     'steps': [
                         {'range': [0, 79.9], 'color': "rgba(239, 68, 68, 0.6)"}, # Red
                         {'range': [79.9, 84.9], 'color': "rgba(245, 158, 11, 0.6)"}, # Amber
@@ -317,87 +391,16 @@ if model is not None:
                     ],
                 }
             ))
-            fig_eff.update_layout(height=280, margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#0f172a"})
+            fig_eff.update_layout(height=280, margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
             st.plotly_chart(fig_eff, use_container_width=True)
             
+        with fig_col2:
             # Sleep Stages Donut
             stages = ['Deep Sleep', 'Light Sleep', 'REM Sleep']
             values = [deep_sleep, light_sleep, rem_sleep]
             fig_stages = go.Figure(data=[go.Pie(labels=stages, values=values, hole=.6, marker_colors=['#0ea5e9', '#8b5cf6', '#10b981'])])
-            fig_stages.update_layout(title_text="Sleep Stages Breakdown", height=280, margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#0f172a"})
+            fig_stages.update_layout(title_text="Sleep Stages Breakdown", height=280, margin=dict(l=20, r=20, t=50, b=20), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f1f5f9"})
             st.plotly_chart(fig_stages, use_container_width=True)
-            
-            # Quick metrics row
-            mcol1, mcol2, mcol3 = st.columns(3)
-            mcol1.metric("Patient Profile", f"{age} yrs, {gender}")
-            mcol2.metric("Total Sleep", f"{sleep_duration} hrs")
-            
-            if sleep_efficiency > 0:
-                time_in_bed = sleep_duration / sleep_efficiency
-                wake_time = time_in_bed - sleep_duration
-                mcol3.metric("Est. Wake Time", f"{wake_time:.1f} hrs")
-            else:
-                mcol3.metric("Est. Wake Time", "N/A")
-
-        with split_right:
-            st.subheader("Diagnostic Risk Predictions")
-            
-            # Consolidated Plotly Risk Bar Chart
-            risk_names_list = []
-            risk_scores_list = []
-            colors_list = []
-            
-            for target_col, info in risk_scores.items():
-                risk_names_list.append(target_col.replace('_', ' ').title())
-                risk_scores_list.append(info['score'])
-                if info['score'] == 0:
-                    colors_list.append('#10b981') # Green
-                elif info['score'] == 1:
-                    colors_list.append('#f59e0b') # Yellow
-                elif info['score'] == 2:
-                    colors_list.append('#ef4444') # Red
-                else:
-                    colors_list.append('#991b1b') # Dark Red
-                    
-            fig_risks = go.Figure(data=[
-                go.Bar(
-                    x=risk_names_list, 
-                    y=risk_scores_list,
-                    marker_color=colors_list,
-                    text=[info['label'] for info in risk_scores.values()],
-                    textposition='auto',
-                    width=0.5
-                )
-            ])
-            fig_risks.update_layout(
-                title="Diagnostic Risk Spectrum",
-                yaxis=dict(tickvals=[0, 1, 2, 3], ticktext=['Low', 'Moderate', 'High', 'Severe'], range=[0, 3.5], gridcolor="#e2e8f0"),
-                height=300,
-                margin=dict(l=20, r=20, t=50, b=20),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font={'color': "#0f172a"}
-            )
-            st.plotly_chart(fig_risks, use_container_width=True)
-            
-            st.write("#### Detailed Risk Explanations")
-            for target_col, info in risk_scores.items():
-                if info['score'] > 0:
-                    with st.expander(f"⚠️ {target_col.replace('_', ' ').title()} - {info['label']}"):
-                        st.write(f"**Why?** {explanations_text[target_col]}")
-                else:
-                    with st.expander(f"✅ {target_col.replace('_', ' ').title()} - Low Risk"):
-                        st.write("No significant risk factors identified for this condition.")
-                        
-            st.divider()
-            max_score = max([info['score'] for info in risk_scores.values()])
-            
-            if max_score > 0:
-                most_severe_risks = [disorder for disorder, info in risk_scores.items() if info['score'] == max_score]
-                risk_names = ", ".join([f"**{r.replace('_', ' ')}**" for r in most_severe_risks])
-                st.error(f"⚠️ **Medical Consultation Recommended**\n\nBased on your metrics, your most prominent risk factor is {risk_names}. We strongly recommend consulting with a doctor or sleep specialist for a professional diagnosis.")
-            else:
-                st.success("🎉 **Great News!**\n\nYour predicted sleep disorder risks are low. Keep up the good sleep hygiene!")
             
         # Report Generation
         st.subheader("Download Your Diagnostic Report")
