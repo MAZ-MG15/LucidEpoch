@@ -475,16 +475,47 @@ if model is not None:
             predicted_label = le_targets[selected_target].inverse_transform([pred_numeric])[0]
             st.markdown(f"**Feature Impact for predicting '{predicted_label}' in {selected_target.replace('_', ' ')}:**")
             
-            fig, ax = plt.subplots(figsize=(10, 4))
-            shap.plots.force(
-                expected_value, 
-                shap_vals_to_plot, 
-                features=input_df.iloc[0], 
-                feature_names=feature_cols,
-                matplotlib=True,
-                show=False
+            # Replace fragile matplotlib force plot with robust Plotly Bar Chart
+            shap_df = pd.DataFrame({
+                'Feature': feature_cols,
+                'SHAP Value': shap_vals_to_plot,
+                'Feature Value': input_df.iloc[0].values
+            })
+            
+            # Sort by absolute impact for better visualization
+            shap_df['Abs Value'] = shap_df['SHAP Value'].abs()
+            shap_df = shap_df.sort_values(by='Abs Value', ascending=True)
+            
+            # Colors: Neon Red for increasing probability, Neon Blue for decreasing
+            bar_colors = ['#FF3B30' if val > 0 else '#0A84FF' for val in shap_df['SHAP Value']]
+            
+            hover_text = [
+                f"Feature: {row['Feature']}<br>Value: {row['Feature Value']}<br>Impact: {row['SHAP Value']:.4f}"
+                for _, row in shap_df.iterrows()
+            ]
+            
+            fig_shap = go.Figure(go.Bar(
+                x=shap_df['SHAP Value'],
+                y=shap_df['Feature'],
+                orientation='h',
+                marker_color=bar_colors,
+                text=shap_df['SHAP Value'].round(3),
+                textposition='auto',
+                hovertext=hover_text,
+                hoverinfo='text'
+            ))
+            
+            fig_shap.update_layout(
+                height=400,
+                margin=dict(l=20, r=20, t=20, b=20),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font={'color': "#ffffff"},
+                xaxis=dict(gridcolor="#333333", zerolinecolor="#ffffff", zerolinewidth=2, title="Impact on Prediction"),
+                yaxis=dict(gridcolor="#333333")
             )
-            st.pyplot(fig)
+            
+            st.plotly_chart(fig_shap, use_container_width=True)
             st.caption("Red bars push the probability of this specific outcome higher; blue bars push it lower.")
         except Exception as e:
             st.error(f"Could not generate SHAP explanation: {e}")
