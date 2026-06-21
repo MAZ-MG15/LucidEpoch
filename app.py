@@ -249,6 +249,9 @@ if model is not None:
     with st.sidebar.expander("📝 Methodology Note"):
         st.caption("This live prototype uses a simplified feature set (Age, Gender, Sleep Duration, Efficiency, and Stage Percentages) for inference. Features like *Awakenings* and *Alcohol Consumption* utilized in the Chapter 3.3 OSA derivation were excluded from this specific deployment build to maintain real-time stability with the serialized model.")
 
+    st.sidebar.divider()
+    clinical_mode = st.sidebar.toggle("🔬 Enable Clinical Mode (Research View)", value=False)
+
     input_data = {
         'Age': age,
         'Gender': gender,
@@ -402,6 +405,95 @@ if model is not None:
         )
     except Exception as e:
         st.error(f"Could not generate PDF summary: {e}")
+
+    # --- ADVANCED CLINICAL MODE ---
+    if clinical_mode:
+        st.divider()
+        st.header("🔬 Clinical Research View")
+        st.write("Advanced diagnostic outputs and model explainability designed for clinical evaluation.")
+        
+        # Multi-Risk Output Table
+        st.subheader("Multi-Risk Prediction Output")
+        st.write("Outputs from the `MultiOutputClassifier` indicating predicted probabilities and raw classes for all targets simultaneously.")
+        
+        clinical_df = pd.DataFrame(risk_scores).T.reset_index()
+        clinical_df.columns = ["Target Disorder", "Predicted Class", "Severity Score (0-3)"]
+        st.dataframe(clinical_df, use_container_width=True)
+        
+        st.write("Raw Output Array:", prediction[0])
+        
+        # SHAP Explainability Output
+        st.subheader("SHAP Explainability Output")
+        st.write("Querying the `shap.TreeExplainer` to isolate exact feature impacts for a specific target prediction.")
+        
+        selected_target = st.selectbox("Select condition to analyze:", target_cols)
+        target_idx = target_cols.index(selected_target)
+        
+        single_model = model.estimators_[target_idx]
+        
+        try:
+            explainer = shap.TreeExplainer(single_model)
+            shap_values = explainer.shap_values(input_df)
+            
+            pred_numeric = prediction[0][target_idx]
+            
+            if isinstance(shap_values, list):
+                if pred_numeric < len(shap_values):
+                    shap_vals_to_plot = shap_values[pred_numeric][0]
+                else:
+                    shap_vals_to_plot = shap_values[-1][0]
+            elif len(shap_values.shape) == 3:
+                if pred_numeric < shap_values.shape[2]:
+                    shap_vals_to_plot = shap_values[0, :, pred_numeric]
+                else:
+                    shap_vals_to_plot = shap_values[0, :, -1]
+            else:
+                shap_vals_to_plot = shap_values[0]
+                
+            predicted_label = le_targets[selected_target].inverse_transform([pred_numeric])[0]
+            st.markdown(f"**Feature Impact for predicting '{predicted_label}' in {selected_target.replace('_', ' ')}:**")
+            
+            shap_df = pd.DataFrame({
+                'Feature': feature_cols,
+                'SHAP Value': shap_vals_to_plot,
+                'Feature Value': input_df.iloc[0].values
+            })
+            
+            shap_df['Abs Value'] = shap_df['SHAP Value'].abs()
+            shap_df = shap_df.sort_values(by='Abs Value', ascending=True)
+            
+            bar_colors = ['#FF3B30' if val > 0 else '#0A84FF' for val in shap_df['SHAP Value']]
+            
+            hover_text = [
+                f"Feature: {row['Feature']}<br>Value: {row['Feature Value']}<br>Impact: {row['SHAP Value']:.4f}"
+                for _, row in shap_df.iterrows()
+            ]
+            
+            fig_shap = go.Figure(go.Bar(
+                x=shap_df['SHAP Value'],
+                y=shap_df['Feature'],
+                orientation='h',
+                marker_color=bar_colors,
+                text=shap_df['SHAP Value'].round(3),
+                textposition='auto',
+                hovertext=hover_text,
+                hoverinfo='text'
+            ))
+            
+            fig_shap.update_layout(
+                height=400,
+                margin=dict(l=20, r=20, t=20, b=20),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font={'color': "#4b5563"},
+                xaxis=dict(gridcolor="#f3f4f6", zerolinecolor="#4b5563", zerolinewidth=2, title="Impact on Prediction (SHAP Value)"),
+                yaxis=dict(gridcolor="#f3f4f6")
+            )
+            
+            st.plotly_chart(fig_shap, use_container_width=True)
+            
+        except Exception as e:
+            st.error(f"Could not generate SHAP explanation: {e}")
 
 else:
     st.warning("Model files not found. Please run `train_model.py` first to generate the models.")
