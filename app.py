@@ -20,7 +20,6 @@ st.markdown("""
         /* Hide Streamlit chrome */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
-        header {visibility: hidden;}
         
         /* Midnight Dark Dashboard Styling */
         .stApp {
