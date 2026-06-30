@@ -120,6 +120,45 @@ st.markdown("""
             box-shadow: 0 0 15px rgba(59, 130, 246, 0.4) !important;
             color: white !important;
         }
+        
+        /* Custom Glassmorphism Cards */
+        .glass-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .glass-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 40px rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+        }
+        .glass-icon {
+            font-size: 2rem;
+            margin-bottom: 12px;
+            display: block;
+        }
+        .glass-title {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .glass-value {
+            color: #f8fafc;
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin: 0;
+            text-shadow: 0 0 15px rgba(255,255,255,0.1);
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -260,28 +299,40 @@ if model is not None:
 
     st.sidebar.divider()
     
+    st.sidebar.subheader("👤 Demographics")
     default_age = st.session_state.get('age', 30)
     default_gender = st.session_state.get('gender', "Male")
     default_gender_idx = 0 if default_gender == "Male" else 1
     
     age = st.sidebar.number_input("Age", min_value=1, max_value=120, value=default_age, disabled=not is_manual)
     gender = st.sidebar.selectbox("Gender", options=["Male", "Female"], index=default_gender_idx, disabled=not is_manual)
+    
+    st.sidebar.subheader("🛏️ Sleep Metrics")
     sleep_duration = st.sidebar.slider("Sleep duration (hours)", min_value=0.0, max_value=24.0, value=st.session_state.get('sleep_duration', 7.0), step=0.1, disabled=not is_manual)
     sleep_efficiency = st.sidebar.slider("Sleep efficiency", min_value=0.0, max_value=1.0, value=st.session_state.get('sleep_efficiency', 0.85), step=0.01, disabled=not is_manual)
-    rem_sleep = st.sidebar.slider("REM sleep percentage (Healthy: 20-25%)", min_value=0, max_value=100, value=st.session_state.get('rem_sleep', 25), disabled=not is_manual)
-    deep_sleep = st.sidebar.slider("Deep sleep percentage (Healthy: 15-20%)", min_value=0, max_value=100, value=st.session_state.get('deep_sleep', 20), disabled=not is_manual)
-    light_sleep = st.sidebar.slider("Light sleep percentage (Healthy: 45-55%)", min_value=0, max_value=100, value=st.session_state.get('light_sleep', 55), disabled=not is_manual)
     
+    st.sidebar.subheader("📊 Sleep Architecture")
+    raw_rem = st.sidebar.slider("REM sleep percentage (Healthy: 20-25%)", min_value=0, max_value=100, value=st.session_state.get('rem_sleep', 25), disabled=not is_manual)
+    raw_deep = st.sidebar.slider("Deep sleep percentage (Healthy: 15-20%)", min_value=0, max_value=100, value=st.session_state.get('deep_sleep', 20), disabled=not is_manual)
+    
+    if raw_rem + raw_deep > 100:
+        st.sidebar.warning("REM and Deep sleep cannot exceed 100%. Values have been capped.")
+        total = raw_rem + raw_deep
+        rem_sleep = int(round((raw_rem / total) * 100))
+        deep_sleep = int(round((raw_deep / total) * 100))
+        light_sleep = 0
+    else:
+        rem_sleep = raw_rem
+        deep_sleep = raw_deep
+        light_sleep = 100 - rem_sleep - deep_sleep
+        
+    if is_manual:
+        st.sidebar.info(f"💡 Light sleep automatically calculated: {light_sleep}%")
+
     st.sidebar.divider()
     
-    total_sleep_stages = rem_sleep + deep_sleep + light_sleep
-    if is_manual and total_sleep_stages != 100:
-        st.sidebar.error(f"⚠️ Invalid Input: Sleep stages currently sum to {total_sleep_stages}%. They must add up to exactly 100%.")
-        st.error("Please adjust the sleep stage percentages in the sidebar to equal exactly 100% before viewing predictions.")
-        st.stop()
-        
     patient_id_input = st.sidebar.text_input("Patient ID (for saving)", placeholder="e.g., PT-001")
-    if st.sidebar.button("💾 Save Patient Record"):
+    if st.sidebar.button("💾 Save Patient Record", use_container_width=True):
         if patient_id_input:
             patient_data = {
                 'patient_id': patient_id_input,
@@ -301,8 +352,6 @@ if model is not None:
         else:
             st.sidebar.warning("Please enter a Patient ID to save.")
             
-    predict_clicked = st.sidebar.button("Predict Risks", type="primary")
-    
     with st.sidebar.expander("📝 Methodology Note"):
         st.caption("This live prototype uses a simplified feature set (Age, Gender, Sleep Duration, Efficiency, and Stage Percentages) for inference. Features like *Awakenings* and *Alcohol Consumption* utilized in the Chapter 3.3 OSA derivation were excluded from this specific deployment build to maintain real-time stability with the serialized model.")
 
@@ -327,14 +376,12 @@ if model is not None:
     input_df = input_df[feature_cols]
 
     # Create Clinical Tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview & Predictions", "🧠 Explainable AI (SHAP)", "📈 Historical Population Data", "🗃️ Batch Processing"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview & Predictions", "🧠 AI Decision Breakdown", "📈 Historical Population Data", "🗃️ Batch Processing"])
     
     with tab1:
-        if predict_clicked or 'predictions' not in st.session_state:
+        with st.spinner("Analyzing patient data..."):
             prediction = model.predict(input_df)
-            st.session_state['predictions'] = prediction
-        else:
-            prediction = st.session_state['predictions']
+        st.session_state['predictions'] = prediction
             
         target_cols = list(le_targets.keys())
         risk_scores = {}
@@ -363,50 +410,93 @@ if model is not None:
         st.subheader("Patient Vitals")
         
         # Row 1: KPI Cards
-        mcol1, mcol2, mcol3 = st.columns(3)
-        mcol1.metric("Total Sleep", f"{sleep_duration} hrs")
-        mcol2.metric("Efficiency", f"{int(sleep_efficiency * 100)}%")
-        if sleep_efficiency > 0:
-            time_in_bed = sleep_duration / sleep_efficiency
-            wake_time = time_in_bed - sleep_duration
-            mcol3.metric("Est. Wake Time", f"{wake_time:.1f} hrs")
-        else:
-            mcol3.metric("Est. Wake Time", "N/A")
+        time_in_bed = sleep_duration / sleep_efficiency if sleep_efficiency > 0 else 0
+        wake_time = (time_in_bed - sleep_duration) if sleep_efficiency > 0 else 0
+        wake_time_str = f"{wake_time:.1f}" if sleep_efficiency > 0 else "N/A"
+        
+        st.markdown(f"""
+        <div style="display: flex; gap: 20px; margin-bottom: 25px;">
+            <div class="glass-card" style="flex: 1;">
+                <span class="glass-icon">⏱️</span>
+                <div class="glass-title">Total Sleep</div>
+                <div class="glass-value">{sleep_duration} <span style="font-size: 1rem; color: #94a3b8;">hrs</span></div>
+            </div>
+            <div class="glass-card" style="flex: 1;">
+                <span class="glass-icon">⚡</span>
+                <div class="glass-title">Efficiency</div>
+                <div class="glass-value">{int(sleep_efficiency * 100)}<span style="font-size: 1rem; color: #94a3b8;">%</span></div>
+            </div>
+            <div class="glass-card" style="flex: 1;">
+                <span class="glass-icon">☕</span>
+                <div class="glass-title">Est. Wake Time</div>
+                <div class="glass-value">{wake_time_str} <span style="font-size: 1rem; color: #94a3b8;">{ 'hrs' if sleep_efficiency > 0 else '' }</span></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
             
         st.write("")
         st.subheader("Sleep Architecture")
         
         fig_col1, fig_col2 = st.columns(2)
         with fig_col1:
-            # Sleep Efficiency Gauge
-            fig_eff = go.Figure(go.Indicator(
-                mode = "gauge+number",
-                value = sleep_efficiency * 100,
-                title = {'text': "Quality Score", 'font': {'color': '#f8fafc'}},
-                gauge = {
-                    'axis': {'range': [0, 100], 'tickcolor': '#f8fafc'},
-                    'bar': {'color': "#f8fafc"},
-                    'steps': [
-                        {'range': [0, 79.9], 'color': "rgba(239, 68, 68, 0.6)"}, # Neon red
-                        {'range': [79.9, 84.9], 'color': "rgba(245, 158, 11, 0.6)"}, # Amber
-                        {'range': [84.9, 100], 'color': "rgba(16, 185, 129, 0.6)"} # Green
-                    ],
-                }
+            # Minimalist Radial Progress for Efficiency
+            eff_val = sleep_efficiency * 100
+            
+            fig_eff = go.Figure()
+            fig_eff.add_trace(go.Pie(
+                values=[eff_val, 100 - eff_val],
+                hole=0.85,
+                marker=dict(colors=['#3b82f6', 'rgba(255,255,255,0.05)']),
+                textinfo='none',
+                hoverinfo='none',
+                sort=False
             ))
-            fig_eff.update_layout(height=250, margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f8fafc"})
+            fig_eff.update_layout(
+                height=280, 
+                margin=dict(l=20, r=20, t=50, b=20), 
+                paper_bgcolor="rgba(0,0,0,0)",
+                showlegend=False,
+                annotations=[
+                    dict(text=f"{int(eff_val)}%", x=0.5, y=0.5, font_size=48, font_color="#f8fafc", showarrow=False, font_family="Inter"),
+                    dict(text="Quality Score", x=0.5, y=1.1, font_size=18, font_color="#94a3b8", showarrow=False, font_family="Inter")
+                ]
+            )
             st.plotly_chart(fig_eff, use_container_width=True)
             
         with fig_col2:
-            # Sleep Stages Donut
-            stages = ['Deep Sleep', 'Light Sleep', 'REM Sleep']
-            values = [deep_sleep, light_sleep, rem_sleep]
-            fig_stages = go.Figure(data=[go.Pie(labels=stages, values=values, hole=.7, marker_colors=['#3b82f6', '#8b5cf6', '#06b6d4'])])
-            fig_stages.update_layout(height=250, margin=dict(l=20, r=20, t=10, b=10), paper_bgcolor="rgba(0,0,0,0)", font={'color': "#f8fafc"})
+            # Horizontal Stacked Bar (Sleep Timeline)
+            fig_stages = go.Figure()
+            
+            fig_stages.add_trace(go.Bar(
+                y=['Stages'], x=[deep_sleep], name='Deep Sleep', orientation='h',
+                marker=dict(color='#06b6d4', line=dict(color='rgba(0,0,0,0)', width=0)) # Cyan
+            ))
+            fig_stages.add_trace(go.Bar(
+                y=['Stages'], x=[light_sleep], name='Light Sleep', orientation='h',
+                marker=dict(color='#8b5cf6', line=dict(color='rgba(0,0,0,0)', width=0)) # Purple
+            ))
+            fig_stages.add_trace(go.Bar(
+                y=['Stages'], x=[rem_sleep], name='REM Sleep', orientation='h',
+                marker=dict(color='#3b82f6', line=dict(color='rgba(0,0,0,0)', width=0)) # Blue
+            ))
+            
+            fig_stages.update_layout(
+                barmode='stack',
+                height=280,
+                margin=dict(l=20, r=20, t=60, b=40),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                title={'text': "Sleep Architecture Timeline", 'font': {'size': 18, 'color': '#94a3b8', 'family': 'Inter'}, 'x': 0.5},
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=True, color='#94a3b8', ticksuffix='%'),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5, font=dict(color='#f8fafc')),
+                hovermode="y unified"
+            )
             st.plotly_chart(fig_stages, use_container_width=True)
             
         st.divider()
         st.subheader("Diagnostic Risk Spectrum")
-        st.write("Outputs from the MultiOutputClassifier indicating predicted probabilities and raw classes for all targets simultaneously.")
+        st.write("Comprehensive Risk Analysis indicating predicted probabilities and outcomes.")
         
         # Consolidated Plotly Risk Bar Chart
         risk_names_list = []
@@ -488,14 +578,15 @@ if model is not None:
                 data=pdf_bytes,
                 file_name=f"lucidepoch_report_{report_patient_data['patient_id']}.pdf",
                 mime="application/pdf",
-                type="primary"
+                type="primary",
+                use_container_width=True
             )
         except Exception as e:
             st.error(f"Could not generate PDF summary: {e}")
 
     with tab2:
-        st.subheader("Explainable AI (SHAP) Matrix")
-        st.write("Querying the `shap.TreeExplainer` to isolate exact feature impacts for a specific target prediction.")
+        st.subheader("AI Decision Breakdown")
+        st.write("Understand which factors influenced your prediction.")
         
         selected_target = st.selectbox("Select condition to analyze:", target_cols)
         target_idx = target_cols.index(selected_target)
@@ -595,12 +686,13 @@ if model is not None:
             st.divider()
             
             if 'OSA_Risk' in hist_data.columns:
-                osa_counts = hist_data['OSA_Risk'].value_counts().reset_index()
-                osa_counts.columns = ['Risk Level', 'Count']
-                fig_osa = px.bar(osa_counts, x='Risk Level', y='Count', title="Training Data: OSA Risk Labels", color='Risk Level',
-                                color_discrete_map={'Low OSA Risk': '#10b981', 'Moderate OSA Risk': '#f59e0b', 'High OSA Risk': '#ef4444', 'Severe OSA Risk': '#991b1b', 'Low': '#10b981', 'Moderate': '#f59e0b', 'High': '#ef4444'})
-                fig_osa.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': "#f8fafc"})
-                st.plotly_chart(fig_osa, use_container_width=True)
+                with st.expander("📊 View Detailed OSA Risk Distribution in Training Data"):
+                    osa_counts = hist_data['OSA_Risk'].value_counts().reset_index()
+                    osa_counts.columns = ['Risk Level', 'Count']
+                    fig_osa = px.bar(osa_counts, x='Risk Level', y='Count', title="Training Data: OSA Risk Labels", color='Risk Level',
+                                    color_discrete_map={'Low OSA Risk': '#10b981', 'Moderate OSA Risk': '#f59e0b', 'High OSA Risk': '#ef4444', 'Severe OSA Risk': '#991b1b', 'Low': '#10b981', 'Moderate': '#f59e0b', 'High': '#ef4444'})
+                    fig_osa.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': "#f8fafc"})
+                    st.plotly_chart(fig_osa, use_container_width=True)
             
             with st.expander("📥 Download Raw Dataset (CSV)"):
                 st.write("For verification purposes, you can download the raw dataset used to train the model.")
@@ -627,7 +719,7 @@ if model is not None:
                 st.write("Preview of uploaded data:")
                 st.dataframe(batch_df.head())
                 
-                if st.button("Process Batch Predictions", type="primary"):
+                if st.button("Process Batch Predictions", type="primary", use_container_width=True):
                     with st.spinner("Processing patients..."):
                         process_df = batch_df.copy()
                         # Encode gender
