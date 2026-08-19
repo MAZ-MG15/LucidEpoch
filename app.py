@@ -299,21 +299,24 @@ if model is not None:
 
     st.sidebar.divider()
     
-    st.sidebar.subheader("👤 Demographics")
-    default_age = st.session_state.get('age', 30)
-    default_gender = st.session_state.get('gender', "Male")
-    default_gender_idx = 0 if default_gender == "Male" else 1
-    
-    age = st.sidebar.number_input("Age", min_value=1, max_value=120, value=default_age, disabled=not is_manual)
-    gender = st.sidebar.selectbox("Gender", options=["Male", "Female"], index=default_gender_idx, disabled=not is_manual)
-    
-    st.sidebar.subheader("🛏️ Sleep Metrics")
-    sleep_duration = st.sidebar.slider("Sleep duration (hours)", min_value=0.0, max_value=24.0, value=st.session_state.get('sleep_duration', 7.0), step=0.1, disabled=not is_manual)
-    sleep_efficiency = st.sidebar.slider("Sleep efficiency", min_value=0.0, max_value=1.0, value=st.session_state.get('sleep_efficiency', 0.85), step=0.01, disabled=not is_manual)
-    
-    st.sidebar.subheader("📊 Sleep Architecture")
-    raw_rem = st.sidebar.slider("REM sleep percentage (Healthy: 20-25%)", min_value=0, max_value=100, value=st.session_state.get('rem_sleep', 25), disabled=not is_manual)
-    raw_deep = st.sidebar.slider("Deep sleep percentage (Healthy: 15-20%)", min_value=0, max_value=100, value=st.session_state.get('deep_sleep', 20), disabled=not is_manual)
+    with st.sidebar.form("patient_data_form"):
+        st.subheader("👤 Demographics")
+        default_age = st.session_state.get('age', 30)
+        default_gender = st.session_state.get('gender', "Male")
+        default_gender_idx = 0 if default_gender == "Male" else 1
+        
+        age = st.number_input("Age", min_value=1, max_value=120, value=default_age, disabled=not is_manual)
+        gender = st.selectbox("Gender", options=["Male", "Female"], index=default_gender_idx, disabled=not is_manual)
+        
+        st.subheader("🛏️ Sleep Metrics")
+        sleep_duration = st.slider("Sleep duration (hours)", min_value=0.0, max_value=24.0, value=st.session_state.get('sleep_duration', 7.0), step=0.1, disabled=not is_manual)
+        sleep_efficiency = st.slider("Sleep efficiency", min_value=0.0, max_value=1.0, value=st.session_state.get('sleep_efficiency', 0.85), step=0.01, disabled=not is_manual)
+        
+        st.subheader("📊 Sleep Architecture")
+        raw_rem = st.slider("REM sleep percentage (Healthy: 20-25%)", min_value=0, max_value=100, value=st.session_state.get('rem_sleep', 25), disabled=not is_manual)
+        raw_deep = st.slider("Deep sleep percentage (Healthy: 15-20%)", min_value=0, max_value=100, value=st.session_state.get('deep_sleep', 20), disabled=not is_manual)
+        
+        submit_button = st.form_submit_button("🚀 Analyze Patient Data", type="primary", use_container_width=True)
     
     if raw_rem + raw_deep > 100:
         st.sidebar.warning("REM and Deep sleep cannot exceed 100%. Values have been capped.")
